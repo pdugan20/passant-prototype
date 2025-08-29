@@ -1,0 +1,110 @@
+export const EMOJI_CATEGORIES = {
+  restaurant: ['🍽️', '🍴', '👨‍🍳', '🍷', '🍾', '🥂', '🍸', '🍹', '🍺', '☕'],
+  bar: ['🍺', '🍻', '🍷', '🍸', '🍹', '🥃', '🍾', '🥂', '🍶', '🍣'],
+  food: ['🍕', '🍔', '🍟', '🌮', '🍜', '🍲', '🥗', '🍱', '🍳', '🥘'],
+  coffee: ['☕', '🍵', '🥤', '🧋', '🍩', '🥐', '🧁', '🍪', '🥧', '🍰'],
+  travel: ['✈️', '🌍', '🗺️', '🧳', '🏖️', '🏔️', '🚂', '🚢', '🏨', '📸'],
+  shopping: ['🛍️', '💳', '🛒', '🏬', '💰', '💎', '👗', '👠', '👜', '⌚'],
+  work: ['💼', '📊', '💻', '📈', '📉', '📧', '📞', '🏢', '⏰', '📅'],
+  fitness: ['💪', '🏃', '🏋️', '🧘', '🚴', '⛹️', '🏊', '🥊', '⚽', '🏆'],
+  music: ['🎵', '🎶', '🎤', '🎧', '🎸', '🎹', '🎺', '🎷', '🥁', '🎼'],
+  movie: ['🎬', '🎥', '📽️', '🎞️', '🍿', '🎭', '🎪', '🎟️', '📺', '🎦'],
+  book: ['📚', '📖', '📕', '📗', '📘', '📙', '✍️', '🖊️', '📝', '🔖'],
+  game: ['🎮', '🎯', '🎲', '♟️', '🃏', '🎰', '🕹️', '👾', '🏆', '🥇'],
+  general: ['📝', '✅', '💡', '📌', '🎯', '📚', '🔥', '⭐', '🚀', '💪'],
+};
+
+export type EmojiCategoryKey = keyof typeof EMOJI_CATEGORIES;
+
+export const CATEGORY_KEYWORDS: Record<EmojiCategoryKey, string[]> = {
+  bar: [
+    'bar', 'bars', 'drink', 'drinks', 'cocktail', 'cocktails', 'beer', 'wine', 
+    'pub', 'brewery', 'nightlife', 'happy hour', 'lounge', 'club', 'nightclub',
+    'spirits', 'whiskey', 'vodka', 'gin', 'rum', 'tequila', 'sake', 'alcohol'
+  ],
+  restaurant: [
+    'restaurant', 'restaurants', 'dining', 'dinner', 'lunch', 'breakfast', 'brunch',
+    'cafe', 'bistro', 'eatery', 'diner', 'steakhouse', 'pizzeria', 'sushi',
+    'italian', 'chinese', 'mexican', 'thai', 'indian', 'french', 'japanese',
+    'reservation', 'meal', 'cuisine', 'chef', 'menu', 'table', 'fine dining'
+  ],
+  food: [
+    'food', 'foods', 'eat', 'eating', 'meal', 'meals', 'snack', 'snacks', 'recipe',
+    'recipes', 'cooking', 'baking', 'grocery', 'groceries', 'ingredient', 'dish',
+    'dishes', 'delicious', 'tasty', 'yummy', 'hungry', 'appetite', 'feast', 'buffet',
+    'takeout', 'delivery', 'order', 'kitchen', 'cook', 'bake'
+  ],
+  coffee: [
+    'coffee', 'cafe', 'espresso', 'latte', 'cappuccino', 'mocha', 'americano',
+    'tea', 'matcha', 'chai', 'starbucks', 'dunkin', 'coffeeshop', 'barista',
+    'brew', 'roast', 'beans', 'caffeine', 'morning', 'bakery', 'pastry', 'croissant'
+  ],
+  travel: [
+    'travel', 'trip', 'trips', 'vacation', 'holiday', 'holidays', 'journey', 'tour',
+    'flight', 'flights', 'hotel', 'hotels', 'airbnb', 'hostel', 'destination',
+    'airport', 'plane', 'train', 'road trip', 'cruise', 'adventure', 'explore',
+    'sightseeing', 'tourist', 'tourism', 'passport', 'luggage', 'packing', 'itinerary'
+  ],
+  shopping: [
+    'shop', 'shopping', 'buy', 'buying', 'purchase', 'store', 'stores', 'mall',
+    'outlet', 'boutique', 'retail', 'sale', 'sales', 'discount', 'deal', 'deals',
+    'wishlist', 'cart', 'checkout', 'payment', 'amazon', 'online shopping',
+    'fashion', 'clothes', 'clothing', 'shoes', 'accessories', 'gift', 'gifts'
+  ],
+  work: [
+    'work', 'working', 'job', 'meeting', 'meetings', 'office', 'project', 'projects',
+    'task', 'tasks', 'deadline', 'presentation', 'conference', 'call', 'zoom',
+    'slack', 'email', 'emails', 'report', 'reports', 'client', 'clients', 'boss',
+    'colleague', 'coworker', 'team', 'company', 'business', 'career', 'professional'
+  ],
+  fitness: [
+    'workout', 'workouts', 'gym', 'exercise', 'exercises', 'fitness', 'training',
+    'run', 'running', 'jog', 'jogging', 'walk', 'walking', 'hike', 'hiking',
+    'yoga', 'pilates', 'crossfit', 'cardio', 'weights', 'lifting', 'muscle',
+    'health', 'healthy', 'wellness', 'sport', 'sports', 'athletic', 'marathon'
+  ],
+  music: [
+    'music', 'song', 'songs', 'playlist', 'playlists', 'concert', 'concerts',
+    'festival', 'band', 'bands', 'artist', 'artists', 'album', 'albums', 'track',
+    'tracks', 'spotify', 'apple music', 'radio', 'podcast', 'podcasts', 'live music',
+    'performance', 'gig', 'show', 'tour', 'ticket', 'tickets', 'venue'
+  ],
+  movie: [
+    'movie', 'movies', 'film', 'films', 'cinema', 'theater', 'theatre', 'watch',
+    'watching', 'netflix', 'hulu', 'disney', 'amazon prime', 'streaming', 'series',
+    'tv show', 'show', 'shows', 'episode', 'episodes', 'season', 'binge', 'actor',
+    'actress', 'director', 'documentary', 'drama', 'comedy', 'horror', 'action'
+  ],
+  book: [
+    'book', 'books', 'read', 'reading', 'novel', 'novels', 'story', 'stories',
+    'author', 'authors', 'literature', 'library', 'bookstore', 'kindle', 'ebook',
+    'audiobook', 'chapter', 'chapters', 'page', 'pages', 'bookmark', 'review',
+    'recommendation', 'bestseller', 'fiction', 'nonfiction', 'biography', 'memoir'
+  ],
+  game: [
+    'game', 'games', 'gaming', 'play', 'playing', 'player', 'players', 'xbox',
+    'playstation', 'nintendo', 'switch', 'pc gaming', 'steam', 'console', 'controller',
+    'multiplayer', 'online', 'tournament', 'competition', 'score', 'level', 'quest',
+    'rpg', 'fps', 'strategy', 'puzzle', 'board game', 'card game', 'sport', 'sports'
+  ],
+  general: [
+    'note', 'notes', 'list', 'todo', 'reminder', 'idea', 'ideas', 'thought',
+    'thoughts', 'plan', 'plans', 'goal', 'goals', 'task', 'item', 'items'
+  ],
+};
+
+export function getEmojiCategory(title: string): string[] {
+  const lowerTitle = title.toLowerCase();
+  
+  // Check each category's keywords
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (lowerTitle.includes(keyword)) {
+        return EMOJI_CATEGORIES[category as EmojiCategoryKey];
+      }
+    }
+  }
+  
+  // Default to restaurant emojis
+  return EMOJI_CATEGORIES.restaurant;
+}
