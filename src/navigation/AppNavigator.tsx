@@ -1,51 +1,58 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+} from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeContext";
 
-import ActivityScreen from '../screens/ActivityScreen';
-import MyListsScreen from '../screens/MyListsScreen';
-import ExploreScreen from '../screens/ExploreScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import NoteEditorScreen from '../screens/NoteEditorScreen';
+import ActivityScreen from "../screens/ActivityScreen";
+import MyListsScreen from "../screens/MyListsScreen";
+import ExploreScreen from "../screens/ExploreScreen";
+import ProfileScreen from "../screens/ProfileScreen";
+import NoteEditorScreen from "../screens/NoteEditorScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function TabNavigator() {
+  const { theme, isDarkMode } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap = 'home';
+          let iconName: keyof typeof Ionicons.glyphMap = "home";
 
-          if (route.name === 'Activity') {
-            iconName = focused ? 'pulse' : 'pulse-outline';
-          } else if (route.name === 'My Lists') {
-            iconName = focused ? 'list' : 'list-outline';
-          } else if (route.name === 'Explore') {
-            iconName = focused ? 'compass' : 'compass-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
+          if (route.name === "Activity") {
+            iconName = focused ? "people" : "people-outline";
+          } else if (route.name === "My Lists") {
+            iconName = focused ? "list" : "list-outline";
+          } else if (route.name === "Explore") {
+            iconName = focused ? "compass" : "compass-outline";
+          } else if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline";
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: isDarkMode ? "#FFFFFF" : theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#F8F8F8',
+          backgroundColor: theme.colors.surface,
           borderTopWidth: 1,
-          borderTopColor: '#E5E5EA',
+          borderTopColor: theme.colors.border,
           paddingBottom: 5,
           paddingTop: 5,
           height: 85,
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '500',
+          fontWeight: "500",
         },
       })}
     >
@@ -58,15 +65,28 @@ function TabNavigator() {
 }
 
 export default function AppNavigator() {
+  const { theme, isDarkMode } = useTheme();
+
+  const navigationTheme = {
+    ...(isDarkMode ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDarkMode ? DarkTheme.colors : DefaultTheme.colors),
+      background: theme.colors.background,
+      card: theme.colors.surface,
+      border: theme.colors.border,
+      primary: theme.colors.primary,
+    },
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={TabNavigator} />
-        <Stack.Screen 
-          name="NoteEditor" 
+        <Stack.Screen
+          name="NoteEditor"
           component={NoteEditorScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
       </Stack.Navigator>

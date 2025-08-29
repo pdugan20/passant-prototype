@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import MentionPill from './MentionPill';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import MentionPill from "./MentionPill";
 
 interface RichTextRendererProps {
   text: string;
@@ -8,9 +8,9 @@ interface RichTextRendererProps {
 }
 
 interface TextPart {
-  type: 'text' | 'mention';
+  type: "text" | "mention";
   content: string;
-  mentionType?: 'location' | 'person' | 'restaurant';
+  mentionType?: "location" | "person" | "restaurant";
 }
 
 const parseMentions = (text: string): TextPart[] => {
@@ -23,7 +23,7 @@ const parseMentions = (text: string): TextPart[] => {
     // Add text before the mention
     if (match.index > lastIndex) {
       parts.push({
-        type: 'text',
+        type: "text",
         content: text.substring(lastIndex, match.index),
       });
     }
@@ -32,7 +32,7 @@ const parseMentions = (text: string): TextPart[] => {
     const mentionText = match[1];
     const mentionType = detectMentionType(mentionText);
     parts.push({
-      type: 'mention',
+      type: "mention",
       content: mentionText,
       mentionType,
     });
@@ -43,7 +43,7 @@ const parseMentions = (text: string): TextPart[] => {
   // Add remaining text
   if (lastIndex < text.length) {
     parts.push({
-      type: 'text',
+      type: "text",
       content: text.substring(lastIndex),
     });
   }
@@ -51,36 +51,59 @@ const parseMentions = (text: string): TextPart[] => {
   return parts;
 };
 
-const detectMentionType = (text: string): 'location' | 'person' | 'restaurant' => {
+const detectMentionType = (
+  text: string,
+): "location" | "person" | "restaurant" => {
   const lowerText = text.toLowerCase();
-  
+
   // Location keywords
-  const locationKeywords = ['park', 'street', 'avenue', 'plaza', 'square', 'center', 'mall', 'beach', 'lake', 'mountain', 'downtown', 'neighborhood'];
-  if (locationKeywords.some(keyword => lowerText.includes(keyword))) {
-    return 'location';
+  const locationKeywords = [
+    "park",
+    "street",
+    "avenue",
+    "plaza",
+    "square",
+    "center",
+    "mall",
+    "beach",
+    "lake",
+    "mountain",
+    "downtown",
+    "neighborhood",
+  ];
+  if (locationKeywords.some((keyword) => lowerText.includes(keyword))) {
+    return "location";
   }
-  
+
   // Restaurant keywords
-  const restaurantKeywords = ['restaurant', 'cafe', 'bar', 'bistro', 'diner', 'pizzeria', 'bakery', 'grill'];
-  if (restaurantKeywords.some(keyword => lowerText.includes(keyword))) {
-    return 'restaurant';
+  const restaurantKeywords = [
+    "restaurant",
+    "cafe",
+    "bar",
+    "bistro",
+    "diner",
+    "pizzeria",
+    "bakery",
+    "grill",
+  ];
+  if (restaurantKeywords.some((keyword) => lowerText.includes(keyword))) {
+    return "restaurant";
   }
-  
+
   // Default to location for now
-  return 'location';
+  return "location";
 };
 
-export default function RichTextRenderer({ text, style }: RichTextRendererProps) {
+export default function RichTextRenderer({
+  text,
+  style,
+}: RichTextRendererProps) {
   const parts = parseMentions(text);
 
   const renderPart = (part: TextPart, index: number) => {
-    if (part.type === 'mention') {
+    if (part.type === "mention") {
       return (
-        <MentionPill
-          key={index}
-          text={part.content}
-          type={part.mentionType}
-        />
+        <MentionPill key={index} text={part.content} type={part.mentionType} />
       );
     } else {
       return (
@@ -100,8 +123,8 @@ export default function RichTextRenderer({ text, style }: RichTextRendererProps)
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
   },
 });

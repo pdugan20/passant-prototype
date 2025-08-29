@@ -1,32 +1,38 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNotes } from '../context/NotesContext';
-import * as Haptics from 'expo-haptics';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { useNotes } from "../context/NotesContext";
+import { useTheme } from "../context/ThemeContext";
+import * as Haptics from "expo-haptics";
 
 export default function ActivityScreen() {
   const { notes, clearAllNotes } = useNotes();
+  const { theme, isDarkMode } = useTheme();
 
   const handleReset = () => {
     Alert.alert(
-      'Reset Prototype',
+      "Reset Prototype",
       `This will delete all ${notes.length} saved notes and reset the app to its initial state. This cannot be undone.`,
       [
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text: "Cancel",
+          style: "cancel",
         },
         {
-          text: 'Reset',
-          style: 'destructive',
+          text: "Reset",
+          style: "destructive",
           onPress: async () => {
             await clearAllNotes();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
       ],
+      {
+        userInterfaceStyle: isDarkMode ? "dark" : "light",
+      },
     );
   };
+
+  const styles = createStyles(theme);
 
   return (
     <View style={styles.container}>
@@ -40,31 +46,38 @@ export default function ActivityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-  resetButton: {
-    position: 'absolute',
-    bottom: 50,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  resetText: {
-    color: '#FF3B30',
-    fontSize: 16,
-    textDecorationLine: 'underline',
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: theme.colors.text,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+    },
+    resetButton: {
+      position: "absolute",
+      bottom: 50,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.error,
+      borderRadius: 50,
+      minWidth: 120,
+      alignItems: "center",
+    },
+    resetText: {
+      color: theme.colors.error,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+  });
