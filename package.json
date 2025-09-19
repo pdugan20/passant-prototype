@@ -8,7 +8,10 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "setup-hooks": "chmod +x scripts/setup-hooks.sh .githooks/pre-commit && ./scripts/setup-hooks.sh",
+    "typecheck": "tsc --noEmit --skipLibCheck",
+    "check-all": "npm run format:check && npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@10play/tentap-editor": "^0.7.4",

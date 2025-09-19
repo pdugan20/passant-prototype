@@ -10,6 +10,8 @@ import {
   Text,
   Alert,
   InputAccessoryView,
+  Keyboard,
+  Dimensions,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +25,7 @@ import {
 import { FEATURE_FLAGS } from "../config/featureFlags";
 import SuggestionPills from "../components/SuggestionPills";
 import MentionPill from "../components/MentionPill";
+import FullWidthTypeahead from "../components/FullWidthTypeahead";
 import { useMentions } from "react-native-controlled-mentions";
 
 export default function NoteEditorScreen() {
@@ -34,18 +37,17 @@ export default function NoteEditorScreen() {
   const { theme, isDarkMode } = useTheme();
 
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState("🍽️");
   const [_isEditingTitle, setIsEditingTitle] = useState(!noteId);
-  const [isEditingContent, setIsEditingContent] = useState(false);
+  const [_isEditingContent, setIsEditingContent] = useState(false);
   const [availableEmojis, setAvailableEmojis] = useState(
     EMOJI_CATEGORIES.restaurant,
   );
-  const [_showingTypeahead, _setShowingTypeahead] = useState(false);
-  const [suggestionPosition, setSuggestionPosition] = useState({
-    top: 110,
-    left: 20,
-  });
+  const [showingTypeahead, setShowingTypeahead] = useState(false);
+  const [typeaheadKeyword, setTypeaheadKeyword] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [_lastKeyPress, _setLastKeyPress] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [showUpdatePill, setShowUpdatePill] = useState(false);
@@ -53,7 +55,9 @@ export default function NoteEditorScreen() {
 
   const contentInputRef = useRef<any>(null);
   const titleInputRef = useRef<TextInput>(null);
+  const descriptionInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const typeaheadTriggerRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (noteId) {
@@ -98,11 +102,35 @@ export default function NoteEditorScreen() {
     }
   }, [title]); // Removed selectedEmoji dependency
 
+  // Keyboard event listeners
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Don't need to scroll here anymore as we handle it when @ is typed
+      },
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+        setShowingTypeahead(false);
+        typeaheadTriggerRef.current = false;
+      },
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
   const handleSave = async () => {
     if (!title.trim() && !content.trim()) {
       return; // Don't save empty notes
     }
-
 
     const noteData = {
       title: title.trim() || "Untitled",
@@ -125,22 +153,29 @@ export default function NoteEditorScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert("Delete Note", "Are you sure you want to delete this note?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          if (noteId) {
-            await deleteNote(noteId);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            navigation.goBack();
-          }
+    Alert.alert(
+      "Delete Note",
+      "Are you sure you want to delete this note?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (noteId) {
+              await deleteNote(noteId);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
+              navigation.goBack();
+            }
+          },
         },
+      ],
+      {
+        userInterfaceStyle: isDarkMode ? "dark" : "light",
       },
-    ], {
-      userInterfaceStyle: isDarkMode ? "dark" : "light",
-    });
+    );
   };
 
   const handlePrivacyToggle = async () => {
@@ -153,6 +188,27 @@ export default function NoteEditorScreen() {
 
   const handleTitleSubmit = () => {
     setIsEditingTitle(false);
+    if (FEATURE_FLAGS.noteEditor.hasDescriptionField) {
+      // Focus on description field if enabled
+      setTimeout(() => {
+        descriptionInputRef.current?.focus();
+      }, 100);
+    } else {
+      setIsEditingContent(true);
+      setTimeout(() => {
+        if (contentInputRef.current) {
+          // Try different focus methods for react-native-controlled-mentions
+          if (contentInputRef.current.getInnerRef) {
+            contentInputRef.current.getInnerRef()?.focus();
+          } else if (contentInputRef.current.focus) {
+            contentInputRef.current.focus();
+          }
+        }
+      }, 100);
+    }
+  };
+
+  const handleDescriptionSubmit = () => {
     setIsEditingContent(true);
     setTimeout(() => {
       if (contentInputRef.current) {
@@ -207,28 +263,60 @@ export default function NoteEditorScreen() {
   const inputAccessoryViewID = "suggestionPills";
   const styles = createStyles(theme, isDarkMode);
 
-  // Seattle bars for mention suggestions
+  // Seattle bars for mention suggestions with addresses
   const mentionSuggestions = [
-    { id: "1", name: "Canon" },
-    { id: "2", name: "Bathtub Gin & Co" },
-    { id: "3", name: "The Walrus and the Carpenter" },
-    { id: "4", name: "Fremont Brewing" },
-    { id: "5", name: "Radiator Whiskey" },
-    { id: "6", name: "Unicorn" },
-    { id: "7", name: "The Collective on First" },
-    { id: "8", name: "Navy Strength" },
-    { id: "9", name: "Rob Roy" },
-    { id: "10", name: "Flatstick Pub" },
-    { id: "11", name: "The Crocodile" },
-    { id: "12", name: "Bourbon & Bones" },
-    { id: "13", name: "Tavern Law" },
-    { id: "14", name: "Witness Bar" },
-    { id: "15", name: "Queen City Grill" },
-    { id: "16", name: "The Lodge Sports Grille" },
-    { id: "17", name: "Capitol Cider" },
-    { id: "18", name: "Rhein Haus Seattle" },
-    { id: "19", name: "Outlander Brewery" },
-    { id: "20", name: "Holy Mountain Brewing" },
+    { id: "1", name: "Canon", address: "928 12th Ave, Capitol Hill" },
+    { id: "2", name: "Bathtub Gin & Co", address: "2205 2nd Ave, Belltown" },
+    {
+      id: "3",
+      name: "The Walrus and the Carpenter",
+      address: "4743 Ballard Ave NW, Ballard",
+    },
+    { id: "4", name: "Fremont Brewing", address: "1050 N 34th St, Fremont" },
+    {
+      id: "5",
+      name: "Radiator Whiskey",
+      address: "94 Pike St #30, Pike Place Market",
+    },
+    { id: "6", name: "Unicorn", address: "1118 E Pike St, Capitol Hill" },
+    {
+      id: "7",
+      name: "The Collective on First",
+      address: "400 Dexter Ave N, South Lake Union",
+    },
+    { id: "8", name: "Navy Strength", address: "2505 2nd Ave, Belltown" },
+    { id: "9", name: "Rob Roy", address: "2332 2nd Ave, Belltown" },
+    {
+      id: "10",
+      name: "Flatstick Pub",
+      address: "240 2nd Ave S, Pioneer Square",
+    },
+    { id: "11", name: "The Crocodile", address: "2200 2nd Ave, Belltown" },
+    {
+      id: "12",
+      name: "Bourbon & Bones",
+      address: "625 1st Ave, Pioneer Square",
+    },
+    { id: "13", name: "Tavern Law", address: "1406 12th Ave, Capitol Hill" },
+    { id: "14", name: "Witness Bar", address: "410 Broadway E, Capitol Hill" },
+    { id: "15", name: "Queen City Grill", address: "2201 1st Ave, Belltown" },
+    {
+      id: "16",
+      name: "The Lodge Sports Grille",
+      address: "16011 Aurora Ave N, Shoreline",
+    },
+    { id: "17", name: "Capitol Cider", address: "818 E Pike St, Capitol Hill" },
+    {
+      id: "18",
+      name: "Rhein Haus Seattle",
+      address: "912 12th Ave, Capitol Hill",
+    },
+    { id: "19", name: "Outlander Brewery", address: "225 N 36th St, Fremont" },
+    {
+      id: "20",
+      name: "Holy Mountain Brewing",
+      address: "1421 Elliott Ave W, Interbay",
+    },
   ];
 
   // Configuration for mentions - simple styling for editing mode
@@ -290,21 +378,6 @@ export default function NoteEditorScreen() {
     return parts;
   };
 
-  // Calculate suggestion position - simplified approach
-  const calculateSuggestionPosition = (
-    _text: string,
-    _selectionStart: number,
-  ) => {
-    // Instead of relying on potentially incorrect cursor position,
-    // just position typeahead at a reasonable location
-    const baseTop = 150; // A bit lower than the input start
-
-    setSuggestionPosition({
-      top: baseTop,
-      left: 20,
-    });
-  };
-
   // Simple markdown-style auto-formatting
   const handleContentChange = (text: string) => {
     let processedText = text;
@@ -347,13 +420,6 @@ export default function NoteEditorScreen() {
     }
 
     setContent(processedText);
-
-    // Get selection position from the textInputProps if available
-    if (contentInputRef.current) {
-      const selection =
-        contentInputRef.current.selection?.start || processedText.length;
-      calculateSuggestionPosition(processedText, selection);
-    }
   };
 
   // Parse content with rich formatting (headings, bullets, etc.)
@@ -410,68 +476,133 @@ export default function NoteEditorScreen() {
   };
 
   // Use mentions hook for content input with enhanced formatting
-  const { textInputProps, triggers } = useMentions({
+  const { textInputProps } = useMentions({
     value: content,
     onChange: (text: string) => {
       // First run our bullet point logic
       handleContentChange(text);
+
+      // Check if we should show typeahead
+      const atIndex = text.lastIndexOf("@");
+
+      // First check if @ was deleted or doesn't exist
+      if (atIndex === -1) {
+        // No @ in text, hide typeahead
+        setShowingTypeahead(false);
+        typeaheadTriggerRef.current = false;
+        setTypeaheadKeyword("");
+      } else if (atIndex === text.length - 1) {
+        // User just typed @ at the end
+        setShowingTypeahead(true);
+        setTypeaheadKeyword("");
+        typeaheadTriggerRef.current = true;
+
+        // Add padding and scroll to position the @ just above the typeahead
+        setTimeout(() => {
+          if (scrollViewRef.current && contentInputRef.current) {
+            contentInputRef.current.measure(
+              (_x, y, _width, height, _pageX, pageY) => {
+                if (scrollViewRef.current) {
+                  // Get cursor position within the text input
+                  const textBeforeAt = text.substring(0, atIndex);
+                  const lineCount = (textBeforeAt.match(/\n/g) || []).length;
+
+                  // Estimate the vertical position of the cursor within the input
+                  const lineHeight = 22;
+                  const cursorOffsetInInput = Math.min(
+                    lineCount * lineHeight,
+                    height,
+                  );
+
+                  // Calculate the absolute position of the cursor on screen
+                  const cursorScreenY = pageY + cursorOffsetInInput;
+
+                  // Get screen dimensions
+                  const { height: screenHeight } = Dimensions.get("window");
+
+                  // Calculate where we want the cursor to be:
+                  // Screen height - keyboard height - typeahead height - padding
+                  const typeaheadHeight = 300;
+                  const paddingAboveTypeahead = 30;
+                  const targetCursorY =
+                    screenHeight -
+                    keyboardHeight -
+                    typeaheadHeight -
+                    paddingAboveTypeahead;
+
+                  // Calculate how much to scroll
+                  const currentScrollY = 0; // Start from current position
+                  const scrollDelta = cursorScreenY - targetCursorY;
+                  const newScrollY = currentScrollY + scrollDelta;
+
+                  if (scrollDelta > 0) {
+                    scrollViewRef.current.scrollTo({
+                      y: Math.max(0, newScrollY),
+                      animated: false,
+                    });
+                  }
+                }
+              },
+            );
+          }
+        }, 10);
+      } else if (showingTypeahead) {
+        // Check if there's text after @ and it doesn't end with space
+        const textAfterAt = text.substring(atIndex + 1);
+        if (textAfterAt.includes(" ")) {
+          // User typed space after @, hide typeahead
+          setShowingTypeahead(false);
+          typeaheadTriggerRef.current = false;
+          setTypeaheadKeyword("");
+        } else {
+          // Update keyword for filtering
+          setTypeaheadKeyword(textAfterAt);
+        }
+      }
     },
     triggersConfig,
   });
 
-  // Suggestions component with cursor positioning
-  const renderSuggestions = ({ keyword, onSelect }: any) => {
-    if (keyword == null) {
-      return null;
+  // Handle suggestion selection from new typeahead
+  const handleTypeaheadSelect = (suggestion: any) => {
+    // Check if this is an existing note and we're adding a new mention
+    if (noteId && content.includes("•")) {
+      setShowUpdatePill(true);
+      // Auto-hide the pill after 10 seconds
+      setTimeout(() => setShowUpdatePill(false), 10000);
     }
 
-    const suggestions = mentionSuggestions
-      .filter((suggestion) =>
-        suggestion.name.toLowerCase().includes(keyword.toLowerCase()),
-      )
-      .slice(0, 4);
+    // Replace the @ and any partial text with the mention
+    const atIndex = content.lastIndexOf("@");
+    if (atIndex >= 0) {
+      const beforeAt = content.substring(0, atIndex);
+      const afterAt = content.substring(atIndex);
+      const spaceIndex = afterAt.indexOf(" ");
+      const afterMention = spaceIndex > 0 ? afterAt.substring(spaceIndex) : "";
 
-    if (suggestions.length === 0) {
-      return null;
+      // Format as mention using the controlled-mentions format
+      const mentionText = `{@}[${suggestion.name}](${suggestion.id})`;
+      const newContent = beforeAt + mentionText + afterMention;
+      setContent(newContent);
     }
 
-    const handleSuggestionSelect = (suggestion: any) => {
-      // Check if this is an existing note and we're adding a new mention
-      if (noteId && content.includes("•")) {
-        setShowUpdatePill(true);
-        // Auto-hide the pill after 10 seconds
-        setTimeout(() => setShowUpdatePill(false), 10000);
-      }
-      onSelect(suggestion);
-    };
+    // Hide typeahead
+    setShowingTypeahead(false);
+    typeaheadTriggerRef.current = false;
+    setTypeaheadKeyword("");
 
-    return (
-      <View
-        style={[
-          styles.suggestionsContainer,
-          {
-            position: "absolute",
-            top: suggestionPosition.top,
-            left: suggestionPosition.left,
-            zIndex: 9999,
-            alignSelf: "flex-start",
-          },
-        ]}
-      >
-        {suggestions.map((suggestion, index) => (
-          <TouchableOpacity
-            key={suggestion.id}
-            style={[
-              styles.suggestionItem,
-              index === suggestions.length - 1 && styles.lastSuggestionItem,
-            ]}
-            onPress={() => handleSuggestionSelect(suggestion)}
-          >
-            <Text style={styles.suggestionText}>{suggestion.name}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+    // Refocus the input
+    setTimeout(() => {
+      contentInputRef.current?.focus();
+    }, 100);
+  };
+
+  // Handle closing typeahead
+  const handleTypeaheadClose = () => {
+    setShowingTypeahead(false);
+    typeaheadTriggerRef.current = false;
+    setTypeaheadKeyword("");
+    contentInputRef.current?.focus();
   };
 
   return (
@@ -502,23 +633,28 @@ export default function NoteEditorScreen() {
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => {
-            Alert.alert("Options", "", [
-              ...(noteId
-                ? [
-                    {
-                      text: "Delete Note",
-                      style: "destructive" as const,
-                      onPress: handleDelete,
-                    },
-                  ]
-                : []),
+            Alert.alert(
+              "Options",
+              "",
+              [
+                ...(noteId
+                  ? [
+                      {
+                        text: "Delete Note",
+                        style: "destructive" as const,
+                        onPress: handleDelete,
+                      },
+                    ]
+                  : []),
+                {
+                  text: "Cancel",
+                  style: "cancel" as const,
+                },
+              ],
               {
-                text: "Cancel",
-                style: "cancel" as const,
+                userInterfaceStyle: isDarkMode ? "dark" : "light",
               },
-            ], {
-              userInterfaceStyle: isDarkMode ? "dark" : "light",
-            });
+            );
           }}
         >
           <Ionicons
@@ -532,6 +668,9 @@ export default function NoteEditorScreen() {
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
+        contentContainerStyle={{
+          paddingBottom: showingTypeahead ? 400 : 0,
+        }}
         keyboardShouldPersistTaps="handled"
       >
         {FEATURE_FLAGS.noteEditor.showEmojiPicker && (
@@ -583,12 +722,38 @@ export default function NoteEditorScreen() {
             inputAccessoryViewID={inputAccessoryViewID}
           />
 
+          {/* Description field - conditionally shown based on feature flag */}
+          {FEATURE_FLAGS.noteEditor.hasDescriptionField && (
+            <TextInput
+              ref={descriptionInputRef}
+              style={styles.descriptionInput}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe this list in one sentence..."
+              placeholderTextColor={theme.colors.placeholder}
+              selectionColor={theme.colors.primary}
+              onSubmitEditing={handleDescriptionSubmit}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              submitBehavior="submit"
+              multiline={false}
+              autoComplete="off"
+              autoCorrect={false}
+              spellCheck={false}
+              keyboardAppearance={isDarkMode ? "dark" : "light"}
+              inputAccessoryViewID={inputAccessoryViewID}
+            />
+          )}
+
           {/* TextInput with mention highlighting - always visible */}
           <TextInput
             ref={contentInputRef}
             style={styles.contentInput}
             placeholder={
-              FEATURE_FLAGS.noteEditor.showHintText ? "Start typing..." : ""
+              FEATURE_FLAGS.noteEditor.showHintText &&
+              !FEATURE_FLAGS.noteEditor.hasDescriptionField
+                ? "Start adding places..."
+                : ""
             }
             placeholderTextColor={theme.colors.placeholder}
             selectionColor={theme.colors.primary}
@@ -625,9 +790,6 @@ export default function NoteEditorScreen() {
             inputAccessoryViewID={inputAccessoryViewID}
             {...textInputProps}
           />
-
-          {/* Render suggestions for @ mentions at cursor position */}
-          {isEditingContent && renderSuggestions(triggers.mention || {})}
         </View>
       </ScrollView>
 
@@ -642,6 +804,16 @@ export default function NoteEditorScreen() {
             />
           </InputAccessoryView>
         )}
+
+      {/* Full-width typeahead that slides up from keyboard */}
+      <FullWidthTypeahead
+        visible={showingTypeahead}
+        suggestions={mentionSuggestions}
+        keyword={typeaheadKeyword}
+        keyboardHeight={keyboardHeight}
+        onSelect={handleTypeaheadSelect}
+        onClose={handleTypeaheadClose}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -736,6 +908,13 @@ const createStyles = (theme: any, isDarkMode: boolean) =>
       marginTop: -8,
       lineHeight: 41,
     },
+    descriptionInput: {
+      fontSize: 17,
+      color: theme.colors.text,
+      marginBottom: 16,
+      paddingVertical: 8,
+      lineHeight: 22,
+    },
     contentInput: {
       fontSize: 17,
       color: theme.colors.text,
@@ -782,46 +961,6 @@ const createStyles = (theme: any, isDarkMode: boolean) =>
       fontSize: 17,
       color: theme.colors.placeholder,
       lineHeight: 24,
-    },
-    suggestionsContainer: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 8,
-      shadowColor: theme.colors.shadow,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 8,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      maxHeight: 250,
-      marginTop: 8,
-      marginHorizontal: 0,
-      zIndex: 9999,
-      overflow: "hidden",
-    },
-    absolutePosition: {
-      position: "absolute",
-      top: 110,
-      left: 20,
-      right: 20,
-      zIndex: 9999,
-    },
-    suggestionItem: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    lastSuggestionItem: {
-      borderBottomWidth: 0,
-    },
-    suggestionText: {
-      fontSize: 16,
-      color: theme.colors.text,
-      fontWeight: "500",
     },
     mentionContainer: {
       flex: 1,

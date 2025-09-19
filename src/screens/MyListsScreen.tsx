@@ -145,8 +145,11 @@ export default function MyListsScreen() {
       mentions.push(match[1]);
     }
 
+    // Remove mention syntax from content for preview
+    const cleanContent = content.replace(mentionRegex, "");
+
     // Get the non-bullet text (everything after the bullets section)
-    const lines = content.split("\n");
+    const lines = cleanContent.split("\n");
     const nonBulletLines = lines.filter((line) => !line.trim().startsWith("•"));
     const additionalText = nonBulletLines.join(" ").trim();
 

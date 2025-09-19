@@ -8,7 +8,6 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 function AppContent() {
   const { isDarkMode, theme: _theme } = useTheme();
 
-
   return (
     <>
       <AppNavigator />

@@ -5,7 +5,13 @@ const prettierPlugin = require("eslint-plugin-prettier");
 
 module.exports = [
   {
-    ignores: ["node_modules/**", ".expo/**", "dist/**", "babel.config.js", "eslint.config.js"],
+    ignores: [
+      "node_modules/**",
+      ".expo/**",
+      "dist/**",
+      "babel.config.js",
+      "eslint.config.js",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
