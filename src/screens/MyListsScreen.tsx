@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,10 @@ import {
   Pressable,
   SectionList,
   Dimensions,
+  Animated,
+  PanResponder,
+  Alert,
+  Share,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,13 +21,59 @@ import * as Haptics from "expo-haptics";
 
 export default function MyListsScreen() {
   const navigation = useNavigation<any>();
-  const { notes } = useNotes();
-  const { theme } = useTheme();
+  const { notes, deleteNote } = useNotes();
+  const { theme, isDarkMode } = useTheme();
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const swipeableRefs = useRef<{ [key: string]: Animated.Value }>({});
 
   const handleNotePress = (noteId: string) => {
+    // Close any open swipes first
+    Object.keys(swipeableRefs.current).forEach((key) => {
+      if (key !== noteId) {
+        Animated.timing(swipeableRefs.current[key], {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate("NoteEditor", { noteId });
+  };
+
+  const handleShare = async (item: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const message = `${item.title}\n\n${getPreviewText(item.content)}`;
+      await Share.share({
+        message,
+        title: item.title,
+      });
+    } catch (error) {
+      console.log("Error sharing:", error);
+    }
+  };
+
+  const handleDelete = (item: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      `Delete ${item.title}?`,
+      "Delete this list is a permanent action and cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteNote(item.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ],
+      {
+        userInterfaceStyle: isDarkMode ? "dark" : "light",
+      },
+    );
   };
 
   const handleAddNote = () => {
@@ -165,6 +215,211 @@ export default function MyListsScreen() {
     return parts.join(" • ") || "Empty note";
   };
 
+  // Create SwipeableRow component
+  const SwipeableRow = ({
+    item,
+    children,
+  }: {
+    item: any;
+    children: React.ReactNode;
+  }) => {
+    const translateX = useRef(new Animated.Value(0)).current;
+    const shareScale = useRef(new Animated.Value(0)).current;
+    const shareOpacity = useRef(new Animated.Value(0)).current;
+    const deleteScale = useRef(new Animated.Value(0)).current;
+    const deleteOpacity = useRef(new Animated.Value(0)).current;
+
+    // Store ref for this item
+    if (!swipeableRefs.current[item.id]) {
+      swipeableRefs.current[item.id] = translateX;
+    }
+
+    const animateButtons = (show: boolean) => {
+      if (show) {
+        // Animate share button first
+        Animated.parallel([
+          Animated.spring(shareScale, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 7,
+          }),
+          Animated.timing(shareOpacity, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start();
+
+        // Then animate delete button with delay
+        setTimeout(() => {
+          Animated.parallel([
+            Animated.spring(deleteScale, {
+              toValue: 1,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 7,
+            }),
+            Animated.timing(deleteOpacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }, 50);
+      } else {
+        // Hide both buttons
+        Animated.parallel([
+          Animated.timing(shareScale, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shareOpacity, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(deleteScale, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(deleteOpacity, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }
+    };
+
+    const panResponder = useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dx) > 5;
+        },
+        onPanResponderGrant: () => {
+          // Close other open swipes
+          Object.keys(swipeableRefs.current).forEach((key) => {
+            if (key !== item.id) {
+              Animated.timing(swipeableRefs.current[key], {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+              }).start();
+            }
+          });
+        },
+        onPanResponderMove: (_, gestureState) => {
+          // Only allow left swipe (negative dx)
+          if (gestureState.dx < 0) {
+            translateX.setValue(Math.max(gestureState.dx, -140));
+            // Start showing buttons when swiped enough
+            if (gestureState.dx < -30) {
+              const progress = Math.min(1, Math.abs(gestureState.dx + 30) / 90);
+              shareScale.setValue(progress * 0.8);
+              shareOpacity.setValue(progress * 0.8);
+              if (gestureState.dx < -70) {
+                const deleteProgress = Math.min(
+                  1,
+                  Math.abs(gestureState.dx + 70) / 70,
+                );
+                deleteScale.setValue(deleteProgress * 0.8);
+                deleteOpacity.setValue(deleteProgress * 0.8);
+              }
+            }
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dx < -70) {
+            // Snap to open position
+            Animated.spring(translateX, {
+              toValue: -140,
+              useNativeDriver: true,
+              tension: 40,
+              friction: 8,
+            }).start();
+            animateButtons(true);
+          } else {
+            // Snap back to closed
+            Animated.spring(translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 40,
+              friction: 8,
+            }).start();
+            animateButtons(false);
+          }
+        },
+      }),
+    ).current;
+
+    return (
+      <View style={styles.swipeableContainer}>
+        <View style={styles.actionsContainer}>
+          <Animated.View
+            style={[
+              styles.actionButtonWrapper,
+              {
+                transform: [{ scale: shareScale }],
+                opacity: shareOpacity,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.actionButton, styles.shareButton]}
+              onPress={() => {
+                handleShare(item);
+                Animated.timing(translateX, {
+                  toValue: 0,
+                  duration: 200,
+                  useNativeDriver: true,
+                }).start();
+                animateButtons(false);
+              }}
+            >
+              <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.actionText}>Share</Text>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.actionButtonWrapper,
+              {
+                transform: [{ scale: deleteScale }],
+                opacity: deleteOpacity,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => {
+                handleDelete(item);
+                // Don't close the swipe here - let the deletion animation handle it
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.actionText}>Delete</Text>
+          </Animated.View>
+        </View>
+        <Animated.View
+          style={[
+            styles.swipeableRow,
+            {
+              transform: [{ translateX }],
+            },
+          ]}
+          {...panResponder.panHandlers}
+        >
+          {children}
+        </Animated.View>
+      </View>
+    );
+  };
+
   const renderNote = ({
     item,
     index,
@@ -230,26 +485,30 @@ export default function MyListsScreen() {
         return null;
       }
     } else {
-      // List mode - render normally
+      // List mode - render with swipeable functionality
       return (
-        <TouchableOpacity
-          style={styles.noteItem}
-          onPress={() => handleNotePress(item.id)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.emojiContainer}>
-            <Text style={styles.emoji}>{item.emoji || "🍽️"}</Text>
-          </View>
-          <View style={styles.noteContent}>
-            <Text style={styles.noteTitle} numberOfLines={1}>
-              {item.title || "Untitled"}
-            </Text>
-            <Text style={styles.notePreview} numberOfLines={2}>
-              <Text style={styles.noteDate}>{formatDate(item.updatedAt)}</Text>
-              <Text> • {getPreviewText(item.content)}</Text>
-            </Text>
-          </View>
-        </TouchableOpacity>
+        <SwipeableRow item={item}>
+          <TouchableOpacity
+            style={styles.noteItem}
+            onPress={() => handleNotePress(item.id)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.emojiContainer}>
+              <Text style={styles.emoji}>{item.emoji || "🍽️"}</Text>
+            </View>
+            <View style={styles.noteContent}>
+              <Text style={styles.noteTitle} numberOfLines={1}>
+                {item.title || "Untitled"}
+              </Text>
+              <Text style={styles.notePreview} numberOfLines={2}>
+                <Text style={styles.noteDate}>
+                  {formatDate(item.updatedAt)}
+                </Text>
+                <Text> • {getPreviewText(item.content)}</Text>
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </SwipeableRow>
       );
     }
   };
@@ -581,5 +840,54 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.primary,
       opacity: 0.8,
       transform: [{ scale: 0.95 }],
+    },
+    swipeableContainer: {
+      position: "relative",
+      overflow: "hidden",
+    },
+    swipeableRow: {
+      backgroundColor: theme.colors.background,
+      zIndex: 2,
+    },
+    actionsContainer: {
+      position: "absolute",
+      right: 20,
+      top: 0,
+      bottom: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      zIndex: 1,
+    },
+    actionButtonWrapper: {
+      alignItems: "center",
+      marginHorizontal: 8,
+    },
+    actionButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: "center",
+      alignItems: "center",
+      shadowColor: theme.colors.shadow,
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    shareButton: {
+      backgroundColor: "#007AFF",
+    },
+    deleteButton: {
+      backgroundColor: "#FF3B30",
+    },
+    actionText: {
+      color: theme.colors.text,
+      fontSize: 11,
+      marginTop: 6,
+      fontWeight: "500",
     },
   });

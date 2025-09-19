@@ -65,6 +65,9 @@ export default function NoteEditorScreen() {
       if (note) {
         setTitle(note.title);
         setContent(note.content);
+        if (FEATURE_FLAGS.noteEditor.hasDescriptionField && note.description) {
+          setDescription(note.description);
+        }
         const noteEmoji = note.emoji || "🍽️";
         setSelectedEmoji(noteEmoji);
         setIsPrivate(note.isPrivate || false);
@@ -78,9 +81,17 @@ export default function NoteEditorScreen() {
 
         setAvailableEmojis(reorderedEmojis);
       }
-    } else {
-      // Wait for screen animation to complete before focusing
-      setTimeout(() => titleInputRef.current?.focus(), 500);
+    }
+  }, [noteId]);
+
+  // Handle focus for new notes - manually focus after screen animation
+  useEffect(() => {
+    if (!noteId) {
+      const timer = setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 800);
+
+      return () => clearTimeout(timer);
     }
   }, [noteId]);
 
@@ -132,15 +143,33 @@ export default function NoteEditorScreen() {
       return; // Don't save empty notes
     }
 
-    const noteData = {
+    const noteData: any = {
       title: title.trim() || "Untitled",
       content: content.trimEnd(), // Only trim trailing spaces, keep leading indentation
       emoji: selectedEmoji,
       isPrivate: isPrivate,
     };
 
+    if (FEATURE_FLAGS.noteEditor.hasDescriptionField) {
+      noteData.description = description.trim();
+    }
+
     if (noteId) {
-      await updateNote(noteId, noteData);
+      // Only update if something has actually changed
+      const existingNote = getNote(noteId);
+      if (existingNote) {
+        const hasChanges =
+          existingNote.title !== noteData.title ||
+          existingNote.content !== noteData.content ||
+          existingNote.emoji !== noteData.emoji ||
+          existingNote.isPrivate !== noteData.isPrivate ||
+          (FEATURE_FLAGS.noteEditor.hasDescriptionField &&
+            existingNote.description !== noteData.description);
+
+        if (hasChanges) {
+          await updateNote(noteId, noteData);
+        }
+      }
     } else {
       await addNote(noteData);
     }
@@ -863,8 +892,8 @@ const createStyles = (theme: any, isDarkMode: boolean) =>
     },
     emojiSelector: {
       marginHorizontal: 20,
-      marginVertical: 16,
-      paddingVertical: 8,
+      marginVertical: 14,
+      paddingVertical: 7,
       backgroundColor: theme.colors.surface,
       borderRadius: 50,
       borderWidth: 1,
@@ -874,27 +903,27 @@ const createStyles = (theme: any, isDarkMode: boolean) =>
         width: 0,
         height: 2,
       },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOpacity: 0.09,
+      shadowRadius: 7,
+      elevation: 3,
     },
     emojiScrollContent: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 15,
     },
     emojiButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
       backgroundColor: theme.colors.surface,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 12,
+      marginRight: 11,
     },
     emojiButtonSelected: {
       backgroundColor: isDarkMode ? "#404040" : "#D1D1D6",
     },
     emojiText: {
-      fontSize: 20,
+      fontSize: 19,
     },
     editorContainer: {
       flex: 1,
