@@ -74,7 +74,7 @@ export default function FullWidthTypeahead({
       style={[
         styles.container,
         animatedStyle,
-        keyboardHeight > 0 ? { bottom: keyboardHeight } : {},
+        keyboardHeight > 0 ? { bottom: keyboardHeight - 20 } : {}, // Adjust to extend behind keyboard
       ]}
     >
       <ScrollView
@@ -138,8 +138,8 @@ const createStyles = (theme: any, _isDarkMode: boolean) =>
       backgroundColor: theme.colors.surface,
       borderTopLeftRadius: 16,
       borderTopRightRadius: 16,
-      height: SCREEN_HEIGHT * 0.3,
-      maxHeight: 300,
+      height: SCREEN_HEIGHT * 0.3 + 20, // Add extra height to extend behind keyboard
+      maxHeight: 320,
       shadowColor: theme.colors.shadow,
       shadowOffset: {
         width: 0,

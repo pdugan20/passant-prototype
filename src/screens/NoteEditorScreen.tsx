@@ -58,6 +58,7 @@ export default function NoteEditorScreen() {
   const descriptionInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const typeaheadTriggerRef = useRef<boolean>(false);
+  const scrollPositionBeforeTypeahead = useRef<number>(0);
 
   useEffect(() => {
     if (noteId) {
@@ -565,6 +566,8 @@ export default function NoteEditorScreen() {
                   const newScrollY = currentScrollY + scrollDelta;
 
                   if (scrollDelta > 0) {
+                    // Save current scroll position before adjusting
+                    scrollPositionBeforeTypeahead.current = currentScrollY;
                     scrollViewRef.current.scrollTo({
                       y: Math.max(0, newScrollY),
                       animated: false,
@@ -620,6 +623,17 @@ export default function NoteEditorScreen() {
     typeaheadTriggerRef.current = false;
     setTypeaheadKeyword("");
 
+    // Restore scroll position
+    if (
+      scrollViewRef.current &&
+      scrollPositionBeforeTypeahead.current !== undefined
+    ) {
+      scrollViewRef.current.scrollTo({
+        y: scrollPositionBeforeTypeahead.current,
+        animated: false,
+      });
+    }
+
     // Refocus the input
     setTimeout(() => {
       contentInputRef.current?.focus();
@@ -631,6 +645,16 @@ export default function NoteEditorScreen() {
     setShowingTypeahead(false);
     typeaheadTriggerRef.current = false;
     setTypeaheadKeyword("");
+    // Restore previous scroll position
+    if (
+      scrollViewRef.current &&
+      scrollPositionBeforeTypeahead.current !== undefined
+    ) {
+      scrollViewRef.current.scrollTo({
+        y: scrollPositionBeforeTypeahead.current,
+        animated: false,
+      });
+    }
     contentInputRef.current?.focus();
   };
 
@@ -687,7 +711,7 @@ export default function NoteEditorScreen() {
           }}
         >
           <Ionicons
-            name="ellipsis-horizontal-circle"
+            name="ellipsis-horizontal-circle-outline"
             size={24}
             color={theme.colors.primary}
           />
@@ -746,6 +770,7 @@ export default function NoteEditorScreen() {
             multiline={true}
             autoComplete="off"
             autoCorrect={false}
+            autoCapitalize="words"
             spellCheck={false}
             keyboardAppearance={isDarkMode ? "dark" : "light"}
             inputAccessoryViewID={inputAccessoryViewID}
@@ -758,7 +783,11 @@ export default function NoteEditorScreen() {
               style={styles.descriptionInput}
               value={description}
               onChangeText={setDescription}
-              placeholder="Describe this list in one sentence..."
+              placeholder={
+                FEATURE_FLAGS.noteEditor.showHintText
+                  ? "Describe this list in one sentence..."
+                  : ""
+              }
               placeholderTextColor={theme.colors.placeholder}
               selectionColor={theme.colors.primary}
               onSubmitEditing={handleDescriptionSubmit}

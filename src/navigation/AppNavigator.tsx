@@ -80,13 +80,23 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: theme.colors.background,
+          },
+        }}
+      >
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen
           name="NoteEditor"
           component={NoteEditorScreen}
           options={{
             animation: "slide_from_right",
+            contentStyle: {
+              backgroundColor: theme.colors.background,
+            },
           }}
         />
       </Stack.Navigator>
