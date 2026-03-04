@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/pdugan20/passant-prototype/workflows/CI/badge.svg)](https://github.com/pdugan20/passant-prototype/actions)
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=white)](https://reactnative.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
 Prototype Passant iOS app with AI-powered list creation. React Native/Expo with location mentions, animated suggestion pills, and dark/light theme support.
 
