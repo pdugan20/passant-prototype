@@ -57,7 +57,7 @@ src/
    - All navigation wrapped in NavigationContainer with dynamic theme
 
 3. **Component Patterns**:
-   - Rich text editing using @10play/tentap-editor
+   - Rich text editing using `@10play/tentap-editor`
    - Location mentions with react-native-controlled-mentions
    - Animated UI components using react-native-reanimated
    - Haptic feedback for iOS interactions
