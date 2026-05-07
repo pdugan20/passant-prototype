@@ -4,16 +4,7 @@
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=white)](https://reactnative.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
-Prototype Passant iOS app with AI-powered list creation. React Native/Expo with location mentions, animated suggestion pills, and dark/light theme support.
-
-## Features
-
-- **Location Mentions** - Type `@` to trigger full-width typeahead with addresses
-- **Suggestion Pills** - Pre-built templates for restaurants, bars, museums, and more
-- **Smart Formatting** - Auto-conversion of markdown-style bullets with continuation
-- **Dark/Light Theme** - Dynamic theme switching with consistent color palette
-- **Grid/List Views** - Switch between layouts for note browsing
-- **Haptic Feedback** - Native iOS haptic feedback for interactions
+A React Native/Expo prototype of the Passant iOS app, exploring AI-powered list creation. Type `@` to mention locations from a typeahead, tap suggestion pills for templated content (restaurants, bars, museums), and auto-convert markdown bullets as you type — all with dark/light theming and native haptics.
 
 ## Quick Start
 
