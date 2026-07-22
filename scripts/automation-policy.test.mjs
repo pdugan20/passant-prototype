@@ -14,6 +14,38 @@ const workflowPermissions = {
   "pr-lint.yml": { "pull-requests": "read" },
 };
 
+const approvedActions = new Map([
+  ["actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "v7"],
+  ["actions/setup-node@820762786026740c76f36085b0efc47a31fe5020", "v7"],
+  [
+    "amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50",
+    "v6",
+  ],
+]);
+
+const approvedRunCommands = {
+  "ci.yml": new Set([
+    "npm install --global npm@11.5.2",
+    'test "$(npm --version)" = "11.5.2"',
+    "npm ci",
+    "npm run test:automation-policy",
+    "npm run format:check",
+    "npm run lint",
+    "npm run typecheck",
+    "npm run lint:claude",
+  ]),
+  "pr-lint.yml": new Set(),
+};
+
+const approvedCredentialExpressions = {
+  "pr-lint.yml": [
+    {
+      location: "workflow.jobs.validate-title.steps[0].env.GITHUB_TOKEN",
+      value: "${{ secrets.GITHUB_TOKEN }}",
+    },
+  ],
+};
+
 function read(path) {
   return readFileSync(path, "utf8");
 }
@@ -31,10 +63,10 @@ function workflowFiles() {
     .map((entry) => join(workflowsDirectory, entry));
 }
 
-function validateActionReferences(value, location) {
+function collectTrustInputs(value, location, inputs) {
   if (Array.isArray(value)) {
     value.forEach((item, index) =>
-      validateActionReferences(item, `${location}[${index}]`),
+      collectTrustInputs(item, `${location}[${index}]`, inputs),
     );
     return;
   }
@@ -44,37 +76,60 @@ function validateActionReferences(value, location) {
   for (const [key, child] of Object.entries(value)) {
     if (key === "uses") {
       assert.equal(typeof child, "string", `${location}.uses must be a string`);
-      if (!child.startsWith("./") && !child.startsWith("docker://")) {
-        assert.match(
-          child,
-          /^[^@\s]+@[0-9a-f]{40}$/,
-          `${location}.uses must pin an external action to a full commit SHA`,
-        );
-      }
+      inputs.actions.push(child);
     }
 
-    validateActionReferences(child, `${location}.${key}`);
+    if (key === "run") {
+      assert.equal(typeof child, "string", `${location}.run must be a string`);
+      inputs.runCommands.push(child);
+    }
+
+    if (typeof child === "string" && /\$\{\{[^}]*\}\}/.test(child)) {
+      inputs.credentials.push({ location: `${location}.${key}`, value: child });
+    }
+
+    collectTrustInputs(child, `${location}.${key}`, inputs);
   }
 }
 
-function validateNoMutationPath(source, location) {
-  const forbidden = [
-    /@latest\b/i,
-    /\bgh\s+pr\s+(?:merge|review\b[^\n]*--approve)/i,
-    /\bgh\s+api\b/i,
-    /\bgraphql\b/i,
-    /api\.github\.com/i,
-    /enablePullRequestAutoMerge|mergePullRequest|addPullRequestReview/i,
-    /enable-pull-request-automerge|auto-?approve/i,
-  ];
+function validateTrustSurface(workflow, source, filename, location) {
+  const inputs = { actions: [], runCommands: [], credentials: [] };
+  collectTrustInputs(workflow, "workflow", inputs);
 
-  for (const pattern of forbidden) {
-    assert.doesNotMatch(
-      source,
-      pattern,
-      `${location} contains unsafe automation`,
+  for (const action of inputs.actions) {
+    assert.ok(
+      approvedActions.has(action),
+      `${location} uses unapproved action ${action}`,
     );
   }
+
+  const annotatedActions = source
+    .split("\n")
+    .map((line) => line.match(/^\s*(?:-\s+)?uses:\s+(\S+)\s+#\s+(v\d+)\s*$/))
+    .filter(Boolean)
+    .map((match) => ({ action: match[1], version: match[2] }));
+  assert.deepEqual(
+    annotatedActions,
+    inputs.actions.map((action) => ({
+      action,
+      version: approvedActions.get(action),
+    })),
+    `${location} action references must include their approved version comments`,
+  );
+
+  const allowedRuns = approvedRunCommands[filename] ?? new Set();
+  for (const command of inputs.runCommands) {
+    assert.ok(
+      allowedRuns.has(command),
+      `${location} contains unapproved run command ${command}`,
+    );
+  }
+
+  assert.deepEqual(
+    inputs.credentials,
+    approvedCredentialExpressions[filename] ?? [],
+    `${location} contains unapproved credential expressions`,
+  );
 }
 
 function validateWorkflow(source, location) {
@@ -87,8 +142,7 @@ function validateWorkflow(source, location) {
     expected,
     `${location} must declare its exact least-privilege permission map`,
   );
-  validateActionReferences(workflow, location);
-  validateNoMutationPath(source, location);
+  validateTrustSurface(workflow, source, filename, location);
 
   const jobs = object(workflow.jobs, `${location}.jobs`);
   for (const [name, value] of Object.entries(jobs)) {
@@ -279,7 +333,7 @@ test("Dependabot keeps patch/minor groups and isolates pre-1 dependencies", () =
 
 test("the manifest declares exact local automation and toolchain contracts", () => {
   const manifest = JSON.parse(read(packageManifest));
-  assert.deepEqual(manifest.engines, { node: "22.x", npm: "11.x" });
+  assert.deepEqual(manifest.engines, { node: "22.18.0", npm: "11.5.2" });
   assert.equal(manifest.packageManager, "npm@11.5.2");
   assert.equal(manifest.devDependencies?.["claude-code-lint"], "0.7.0");
   assert.equal(manifest.devDependencies?.yaml, "2.9.0");
@@ -294,11 +348,20 @@ test("workflow validation fails closed for malformed or unsafe mechanisms", () =
   const sha = "0123456789abcdef0123456789abcdef01234567";
   const fixture = (step) =>
     `permissions: { contents: read }\njobs: { test: { steps: [${step}] } }`;
+  const checkout = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1";
+  const blockFixture = (step) =>
+    `permissions:\n  contents: read\njobs:\n  test:\n    steps:\n      - ${step}\n`;
 
   assert.doesNotThrow(() =>
+    validateWorkflow(blockFixture(`uses: ${checkout} # v7`), "fixture.yml"),
+  );
+  assert.throws(() =>
+    validateWorkflow(blockFixture(`uses: ${checkout}`), "fixture.yml"),
+  );
+  assert.throws(() =>
     validateWorkflow(fixture(`{ uses: example/action@${sha} }`), "fixture.yml"),
   );
-  assert.doesNotThrow(() =>
+  assert.throws(() =>
     validateWorkflow(fixture("{ uses: docker://alpine:3.22 }"), "fixture.yml"),
   );
   assert.throws(() => validateWorkflow("jobs: [", "fixture.yml"));
@@ -313,6 +376,38 @@ test("workflow validation fails closed for malformed or unsafe mechanisms", () =
   );
   assert.throws(() =>
     validateWorkflow(fixture("{ uses: example/action@v1 }"), "fixture.yml"),
+  );
+  assert.throws(() =>
+    validateWorkflow(
+      blockFixture(
+        `uses: pascalgn/automerge-action@${sha} # v1\n        env:\n          GITHUB_TOKEN: "\${{ secrets.AUTOMERGE_PAT }}"`,
+      ),
+      "fixture.yml",
+    ),
+  );
+  assert.throws(() =>
+    validateWorkflow(
+      blockFixture(
+        `uses: ${checkout} # v7\n        env:\n          GITHUB_TOKEN: "\${{ secrets.UNKNOWN_PAT }}"`,
+      ),
+      "fixture.yml",
+    ),
+  );
+  assert.throws(() =>
+    validateWorkflow(
+      blockFixture(
+        `uses: ${checkout} # v7\n        env:\n          GITHUB_TOKEN: "\${{ secrets['AUTOMERGE_PAT'] }}"`,
+      ),
+      "fixture.yml",
+    ),
+  );
+  assert.throws(() =>
+    validateWorkflow(
+      blockFixture(
+        `uses: ${checkout} # v7\n        env:\n          GITHUB_TOKEN: "\${{ vars.AUTOMERGE_PAT }}"`,
+      ),
+      "fixture.yml",
+    ),
   );
 
   const unsafe = [
