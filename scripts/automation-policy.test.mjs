@@ -142,6 +142,40 @@ const approvedCredentialExpressions = {
   ],
 };
 
+const approvedWorkflowShapes = {
+  "ci.yml": {
+    name: "CI",
+    on: {
+      push: { branches: ["master"] },
+      pull_request: { branches: ["master"] },
+    },
+    permissions: { contents: "read" },
+    jobs: {
+      "lint-and-typecheck": { "runs-on": "ubuntu-latest" },
+      claudelint: { "runs-on": "ubuntu-latest" },
+    },
+  },
+  "pr-lint.yml": {
+    name: "PR Lint",
+    on: {
+      pull_request_target: {
+        types: ["opened", "reopened", "edited", "synchronize"],
+      },
+    },
+    permissions: { "pull-requests": "read" },
+    jobs: {
+      "validate-title": {
+        name: "Validate PR Title",
+        "runs-on": "ubuntu-latest",
+      },
+    },
+  },
+  "fixture.yml": {
+    permissions: { contents: "read" },
+    jobs: { test: {} },
+  },
+};
+
 function read(path) {
   return readFileSync(path, "utf8");
 }
@@ -279,6 +313,28 @@ function validateTrustSurface(workflow, source, filename, location) {
   );
 }
 
+function validateWorkflowShape(workflow, filename, location) {
+  const jobs = object(workflow.jobs, `${location}.jobs`);
+  const jobShapes = Object.fromEntries(
+    Object.entries(jobs).map(([name, value]) => {
+      const job = object(value, `${location}.jobs.${name}`);
+      const { steps, ...shape } = job;
+      assert.ok(
+        Array.isArray(steps),
+        `${location}.jobs.${name}.steps must be a list`,
+      );
+      return [name, shape];
+    }),
+  );
+  const shape = { ...workflow, jobs: jobShapes };
+
+  assert.deepEqual(
+    shape,
+    approvedWorkflowShapes[filename],
+    `${location} contains unapproved workflow or job fields or values`,
+  );
+}
+
 function validateWorkflow(source, location) {
   const workflow = object(parse(source), location);
   const filename = basename(location);
@@ -289,6 +345,7 @@ function validateWorkflow(source, location) {
     expected,
     `${location} must declare its exact least-privilege permission map`,
   );
+  validateWorkflowShape(workflow, filename, location);
   validateTrustSurface(workflow, source, filename, location);
 
   const jobs = object(workflow.jobs, `${location}.jobs`);
@@ -602,6 +659,49 @@ test("workflow validation fails closed for malformed or unsafe mechanisms", () =
         "ci.yml",
       ),
     );
+  }
+
+  const outerShapeBypasses = [
+    ciSource.replace(
+      "name: CI\n",
+      "name: CI\ndefaults:\n  run:\n    shell: bash -c 'gh pr merge 1 --auto; exec bash {0}'\n",
+    ),
+    ciSource.replace(
+      "  lint-and-typecheck:\n",
+      "  lint-and-typecheck:\n    defaults:\n      run:\n        shell: bash -c 'gh pr merge 1 --auto; exec bash {0}'\n",
+    ),
+    ciSource.replace(
+      "    runs-on: ubuntu-latest\n",
+      "    runs-on: ubuntu-latest\n    container:\n      image: attacker/runner:latest\n",
+    ),
+    ciSource.replace(
+      "    runs-on: ubuntu-latest\n",
+      "    runs-on: ubuntu-latest\n    services:\n      helper:\n        image: attacker/helper:latest\n",
+    ),
+    ciSource.replace(
+      "name: CI\n",
+      "name: CI\nenv:\n  BASH_ENV: /tmp/payload\n",
+    ),
+    ciSource.replace(
+      "  lint-and-typecheck:\n",
+      "  lint-and-typecheck:\n    env:\n      NODE_OPTIONS: --require=/tmp/payload.cjs\n",
+    ),
+    ciSource.replace("name: CI\n", "name: CI\nconcurrency: attacker\n"),
+    ciSource.replace(
+      "  lint-and-typecheck:\n",
+      "  lint-and-typecheck:\n    strategy:\n      fail-fast: false\n",
+    ),
+    ciSource.replace(
+      "  lint-and-typecheck:\n",
+      "  lint-and-typecheck:\n    if: false\n",
+    ),
+    ciSource.replace(
+      "    runs-on: ubuntu-latest\n",
+      "    runs-on: ubuntu-latest\n    timeout-minutes: 1\n",
+    ),
+  ];
+  for (const source of outerShapeBypasses) {
+    assert.throws(() => validateWorkflow(source, "ci.yml"));
   }
 
   const unsafe = [
