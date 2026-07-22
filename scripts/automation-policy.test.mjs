@@ -23,18 +23,113 @@ const approvedActions = new Map([
   ],
 ]);
 
-const approvedRunCommands = {
-  "ci.yml": new Set([
-    "npm install --global npm@11.5.2",
-    'test "$(npm --version)" = "11.5.2"',
-    "npm ci",
-    "npm run test:automation-policy",
-    "npm run format:check",
-    "npm run lint",
-    "npm run typecheck",
-    "npm run lint:claude",
+const checkoutAction =
+  "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1";
+const setupNodeAction =
+  "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020";
+const semanticTitleAction =
+  "amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50";
+
+const approvedWorkflowSteps = {
+  "ci.yml": new Map([
+    ["workflow.jobs.lint-and-typecheck.steps[0]", { uses: checkoutAction }],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[1]",
+      {
+        name: "Use Node.js 22.18.0",
+        uses: setupNodeAction,
+        with: { "node-version": "22.18.0", cache: "npm" },
+      },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[2]",
+      {
+        name: "Install npm 11.5.2",
+        run: "npm install --global npm@11.5.2",
+      },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[3]",
+      {
+        name: "Verify npm version",
+        run: 'test "$(npm --version)" = "11.5.2"',
+      },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[4]",
+      { name: "Install dependencies", run: "npm ci" },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[5]",
+      {
+        name: "Validate automation policy",
+        run: "npm run test:automation-policy",
+      },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[6]",
+      { name: "Check formatting", run: "npm run format:check" },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[7]",
+      { name: "Lint", run: "npm run lint" },
+    ],
+    [
+      "workflow.jobs.lint-and-typecheck.steps[8]",
+      { name: "Type check", run: "npm run typecheck" },
+    ],
+    ["workflow.jobs.claudelint.steps[0]", { uses: checkoutAction }],
+    [
+      "workflow.jobs.claudelint.steps[1]",
+      {
+        name: "Use Node.js 22.18.0",
+        uses: setupNodeAction,
+        with: { "node-version": "22.18.0", cache: "npm" },
+      },
+    ],
+    [
+      "workflow.jobs.claudelint.steps[2]",
+      {
+        name: "Install npm 11.5.2",
+        run: "npm install --global npm@11.5.2",
+      },
+    ],
+    [
+      "workflow.jobs.claudelint.steps[3]",
+      {
+        name: "Verify npm version",
+        run: 'test "$(npm --version)" = "11.5.2"',
+      },
+    ],
+    [
+      "workflow.jobs.claudelint.steps[4]",
+      { name: "Install dependencies", run: "npm ci" },
+    ],
+    [
+      "workflow.jobs.claudelint.steps[5]",
+      { name: "Lint Claude Code config", run: "npm run lint:claude" },
+    ],
   ]),
-  "pr-lint.yml": new Set(),
+  "pr-lint.yml": new Map([
+    [
+      "workflow.jobs.validate-title.steps[0]",
+      {
+        uses: semanticTitleAction,
+        with: {
+          types:
+            "feat\nfix\nperf\nrefactor\nrevert\ndocs\nstyle\ntest\nbuild\nci\nchore\ndeps\n",
+          requireScope: false,
+          subjectPattern: "^[a-z].*$",
+          subjectPatternError:
+            "The subject must start with a lowercase letter.\n",
+        },
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" },
+      },
+    ],
+  ]),
+  "fixture.yml": new Map([
+    ["workflow.jobs.test.steps[0]", { uses: checkoutAction }],
+  ]),
 };
 
 const approvedCredentialExpressions = {
@@ -42,6 +137,7 @@ const approvedCredentialExpressions = {
     {
       location: "workflow.jobs.validate-title.steps[0].env.GITHUB_TOKEN",
       value: "${{ secrets.GITHUB_TOKEN }}",
+      expressions: ["${{ secrets.GITHUB_TOKEN }}"],
     },
   ],
 };
@@ -63,6 +159,48 @@ function workflowFiles() {
     .map((entry) => join(workflowsDirectory, entry));
 }
 
+function extractWorkflowExpressions(value, location = "workflow value") {
+  const expressions = [];
+  let cursor = 0;
+
+  while (cursor < value.length) {
+    const start = value.indexOf("${{", cursor);
+    if (start === -1) break;
+
+    let quote = null;
+    let end = -1;
+    for (let index = start + 3; index < value.length; index += 1) {
+      const character = value[index];
+
+      if (quote !== null) {
+        if (character === quote) {
+          if (quote === "'" && value[index + 1] === "'") {
+            index += 1;
+          } else {
+            quote = null;
+          }
+        } else if (quote === '"' && character === "\\") {
+          index += 1;
+        }
+        continue;
+      }
+
+      if (character === "'" || character === '"') {
+        quote = character;
+      } else if (character === "}" && value[index + 1] === "}") {
+        end = index + 2;
+        break;
+      }
+    }
+
+    assert.notEqual(end, -1, `${location} contains an unterminated expression`);
+    expressions.push(value.slice(start, end));
+    cursor = end;
+  }
+
+  return expressions;
+}
+
 function collectTrustInputs(value, location, inputs) {
   if (Array.isArray(value)) {
     value.forEach((item, index) =>
@@ -73,19 +211,28 @@ function collectTrustInputs(value, location, inputs) {
 
   if (typeof value !== "object" || value === null) return;
 
+  if (/\.steps\[\d+\]$/.test(location)) {
+    inputs.steps.push({ location, value });
+  }
+
   for (const [key, child] of Object.entries(value)) {
     if (key === "uses") {
       assert.equal(typeof child, "string", `${location}.uses must be a string`);
       inputs.actions.push(child);
     }
 
-    if (key === "run") {
-      assert.equal(typeof child, "string", `${location}.run must be a string`);
-      inputs.runCommands.push(child);
-    }
-
-    if (typeof child === "string" && /\$\{\{[^}]*\}\}/.test(child)) {
-      inputs.credentials.push({ location: `${location}.${key}`, value: child });
+    if (typeof child === "string") {
+      const expressions = extractWorkflowExpressions(
+        child,
+        `${location}.${key}`,
+      );
+      if (expressions.length > 0) {
+        inputs.credentials.push({
+          location: `${location}.${key}`,
+          value: child,
+          expressions,
+        });
+      }
     }
 
     collectTrustInputs(child, `${location}.${key}`, inputs);
@@ -93,7 +240,7 @@ function collectTrustInputs(value, location, inputs) {
 }
 
 function validateTrustSurface(workflow, source, filename, location) {
-  const inputs = { actions: [], runCommands: [], credentials: [] };
+  const inputs = { actions: [], steps: [], credentials: [] };
   collectTrustInputs(workflow, "workflow", inputs);
 
   for (const action of inputs.actions) {
@@ -117,13 +264,13 @@ function validateTrustSurface(workflow, source, filename, location) {
     `${location} action references must include their approved version comments`,
   );
 
-  const allowedRuns = approvedRunCommands[filename] ?? new Set();
-  for (const command of inputs.runCommands) {
-    assert.ok(
-      allowedRuns.has(command),
-      `${location} contains unapproved run command ${command}`,
-    );
-  }
+  assert.deepEqual(
+    inputs.steps,
+    [...(approvedWorkflowSteps[filename] ?? new Map())].map(
+      ([stepLocation, value]) => ({ location: stepLocation, value }),
+    ),
+    `${location} contains unapproved workflow step fields or values`,
+  );
 
   assert.deepEqual(
     inputs.credentials,
@@ -351,6 +498,8 @@ test("workflow validation fails closed for malformed or unsafe mechanisms", () =
   const checkout = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1";
   const blockFixture = (step) =>
     `permissions:\n  contents: read\njobs:\n  test:\n    steps:\n      - ${step}\n`;
+  const ciSource = read(join(workflowsDirectory, "ci.yml"));
+  const prLintSource = read(join(workflowsDirectory, "pr-lint.yml"));
 
   assert.doesNotThrow(() =>
     validateWorkflow(blockFixture(`uses: ${checkout} # v7`), "fixture.yml"),
@@ -409,6 +558,51 @@ test("workflow validation fails closed for malformed or unsafe mechanisms", () =
       "fixture.yml",
     ),
   );
+  assert.throws(() =>
+    validateWorkflow(
+      blockFixture(
+        `uses: ${checkout} # v7\n        env:\n          GITHUB_TOKEN: "\${{ secrets[format('{0}', 'AUTOMERGE_PAT')] }}"`,
+      ),
+      "fixture.yml",
+    ),
+  );
+  assert.throws(() =>
+    validateWorkflow(
+      prLintSource.replace(
+        "        with:\n",
+        "        with:\n          githubBaseUrl: https://attacker.example\n",
+      ),
+      "pr-lint.yml",
+    ),
+  );
+  assert.throws(() =>
+    validateWorkflow(
+      prLintSource.replace(
+        / {10}types: \|\n(?: {12}[^\n]+\n)+/,
+        '          types: ".*"\n',
+      ),
+      "pr-lint.yml",
+    ),
+  );
+
+  const stepFieldBypasses = [
+    "        shell: bash -c 'gh pr merge 1 --auto; exec bash {0}'",
+    "        if: false",
+    "        working-directory: /tmp",
+    "        continue-on-error: true",
+    "        env:\n          NODE_OPTIONS: --require=/tmp/payload.cjs",
+  ];
+  for (const field of stepFieldBypasses) {
+    assert.throws(() =>
+      validateWorkflow(
+        ciSource.replace(
+          "        run: npm ci",
+          `        run: npm ci\n${field}`,
+        ),
+        "ci.yml",
+      ),
+    );
+  }
 
   const unsafe = [
     `{ uses: peter-evans/enable-pull-request-automerge@${sha} }`,
@@ -421,4 +615,9 @@ test("workflow validation fails closed for malformed or unsafe mechanisms", () =
   for (const step of unsafe) {
     assert.throws(() => validateWorkflow(fixture(step), "fixture.yml"));
   }
+});
+
+test("workflow expression extraction handles braces inside format calls", () => {
+  const expression = "${{ secrets[format('{0}', 'AUTOMERGE_PAT')] }}";
+  assert.deepEqual(extractWorkflowExpressions(expression), [expression]);
 });
