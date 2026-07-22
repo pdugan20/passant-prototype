@@ -28,11 +28,16 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: "development"
+        exclude-patterns:
+          - "@react-native/eslint-config"
         update-types:
           - "minor"
           - "patch"
       production-dependencies:
         dependency-type: "production"
+        exclude-patterns:
+          - "@10play/tentap-editor"
+          - "react-native"
         update-types:
           - "minor"
           - "patch"

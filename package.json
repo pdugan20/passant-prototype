@@ -2,14 +2,21 @@
   "name": "notes-app",
   "version": "1.0.0",
   "main": "index.ts",
+  "engines": {
+    "node": "22.x",
+    "npm": "11.x"
+  },
+  "packageManager": "npm@11.5.2",
   "scripts": {
     "start": "expo start --ios",
     "ios": "expo start --ios",
     "lint": "eslint .",
+    "lint:claude": "claudelint",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "setup-hooks": "chmod +x scripts/setup-hooks.sh .githooks/pre-commit && ./scripts/setup-hooks.sh",
+    "test:automation-policy": "node --test scripts/automation-policy.test.mjs",
     "typecheck": "tsc --noEmit --skipLibCheck",
     "check-all": "npm run format:check && npm run lint && npm run typecheck"
   },
@@ -41,12 +48,14 @@
     "@react-native/eslint-config": "^0.84.1",
     "@types/react": "~19.2.16",
     "babel-preset-expo": "^54.0.2",
+    "claude-code-lint": "0.7.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "prettier": "^3.8.1",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.57.2"
+    "typescript-eslint": "^8.57.2",
+    "yaml": "2.9.0"
   },
   "private": true
 }
